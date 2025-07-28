@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>حاسبة الطاقة الشمسية</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      direction: rtl;
+      margin: 0;
+      padding: 0;
+      display: flex;
+    }
+
+    .main-container {
+      flex: 3;
+      padding: 20px;
+    }
+
+    .map-container {
+      flex: 1;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      background-color: #f9f9f9;
+    }
+
+    #map {
+      height: 300px;
+      width: 100%;
+      margin-top: 10px;
+      border: 1px solid #ccc;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+
+    input {
+      width: 100%;
+      padding: 5px;
+      margin-top: 5px;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 10px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 5px;
+    }
+
+    #results {
+      background-color: #f1f1f1;
+      margin-top: 20px;
+      padding: 10px;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- المحتوى الرئيسي -->
+  <div class="main-container">
+    <h2>🔆 حاسبة الطاقة الشمسية</h2>
+
+    <!-- اختيار طريقة الإدخال -->
+    <label><input type="radio" name="inputMode" value="direct" checked> إدخال مباشر للاستهلاك</label>
+    <label><input type="radio" name="inputMode" value="devices"> إدخال حسب الأجهزة</label>
+
+    <!-- إدخال مباشر -->
+    <div id="directInputs">
+      <label>الاستهلاك اليومي (kWh): <input type="number" id="dailyUsage"></label>
+      <label>أو الاستهلاك الشهري (kWh): <input type="number" id="monthlyUsage"></label>
+    </div>
+
+    <!-- إدخال حسب الأجهزة -->
+    <div id="deviceInputs" style="display: none;">
+      <table id="devicesTable">
+        <tr>
+          <th>الجهاز</th>
+          <th>القدرة (W)</th>
+          <th>عدد الساعات</th>
+          <th>العدد</th>
+        </tr>
+        <tr>
+          <td><input type="text" placeholder="ثلاجة"></td>
+          <td><input type="number"></td>
+          <td><input type="number"></td>
+          <td><input type="number"></td>
+        </tr>
+      </table>
+      <button onclick="addDevice()">➕ أضف جهاز</button>
+    </div>
+
+    <hr>
+
+    <!-- جهد النظام -->
+    <label>🔋 جهد النظام (V): <input type="number" id="systemVoltage" value="24"></label>
+
+    <!-- مواصفات الألواح -->
+    <label>🔌 مواصفات اللوح الشمسي:</label>
+    <input type="number" id="panelWatt" placeholder="القدرة (W)" value="300">
+    <input type="number" id="panelVoltage" placeholder="الجهد (V)" value="18">
+    <input type="number" id="panelPrice" placeholder="السعر (DA)" value="150">
+
+    <!-- مواصفات البطاريات -->
+    <label>🔋 مواصفات البطارية:</label>
+    <input type="number" id="batteryCapacity" placeholder="السعة (Ah)" value="200">
+    <input type="number" id="batteryVoltage" placeholder="الجهد (V)" value="12">
+    <input type="number" id="batteryPrice" placeholder="السعر (DA)" value="200">
+
+    <hr>
+
+    <!-- نتائج الموقع -->
+    <p id="selectedLocation">📍 اختر موقعًا من الخريطة</p>
+    <p id="irradiationValue">☀️ الإشعاع الشمسي: غير معروف</p>
+    <button onclick="calculate()">🔍 حساب</button>
+
+    <!-- عرض النتائج -->
+    <div id="results"></div>
+  </div>
+
+  <!-- الخريطة -->
+  <div class="map-container">
+    <h4>🌍 أدخل المنطقة:</h4>
+    <div id="map"></div>
+  </div>
+
+  <!-- تحميل Leaflet -->
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <!-- ملف الجافا سكربت -->
+  <script src="script.js"></script>
+</body>
+</html>
