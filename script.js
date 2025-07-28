@@ -1,100 +1,107 @@
-let selectedLat = null;
-let selectedLng = null;
-let irradiation = null;
+let map = L.map('map').setView([28, 2], 6);
+let selectedLatLng = null;
+let marker = null;
 
-// تغيير طريقة الإدخال
-document.querySelectorAll('input[name="inputMode"]').forEach(el => {
-  el.addEventListener('change', () => {
-    const mode = document.querySelector('input[name="inputMode"]:checked').value;
-    document.getElementById('directInputs').style.display = (mode === 'direct') ? 'block' : 'none';
-    document.getElementById('deviceInputs').style.display = (mode === 'devices') ? 'block' : 'none';
-  });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+map.on('click', async function (e) {
+  selectedLatLng = e.latlng;
+
+  if (marker) map.removeLayer(marker);
+  marker = L.marker(selectedLatLng).addTo(map);
+
+  document.getElementById('selectedLocation').innerText = `📍 الإحداثيات: ${selectedLatLng.lat.toFixed(4)}, ${selectedLatLng.lng.toFixed(4)}`;
+  await getIrradiation(selectedLatLng.lat, selectedLatLng.lng);
 });
 
+async function getIrradiation(lat, lon) {
+  const url = `https://re.jrc.ec.europa.eu/api/v5_2/series?lat=${lat}&lon=${lon}&outputformat=json&startyear=2020&endyear=2020&optimalangles=1`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    const dailyData = data.outputs.daily;
+
+    if (!dailyData || dailyData.length === 0) {
+      document.getElementById("irradiationValue").innerText = "❌ لم يتم العثور على بيانات الإشعاع.";
+      return;
+    }
+
+    // حساب المتوسط اليومي للإشعاع
+    const total = dailyData.reduce((sum, d) => sum + (d.G(i) || 0), 0);
+    const averageIrradiation = (total / dailyData.length).toFixed(2);
+    document.getElementById("irradiationValue").innerText = `☀️ الإشعاع الشمسي: ${averageIrradiation} kWh/m²`;
+    document.getElementById("irradiationValue").dataset.value = averageIrradiation;
+  } catch (err) {
+    console.error(err);
+    document.getElementById("irradiationValue").innerText = "⚠️ حدث خطأ أثناء جلب بيانات الإشعاع.";
+  }
+}
+
 function addDevice() {
-  const row = document.createElement('tr');
+  const table = document.getElementById("devicesTable");
+  const row = table.insertRow();
   row.innerHTML = `
     <td><input type="text" placeholder="جهاز"></td>
     <td><input type="number"></td>
     <td><input type="number"></td>
     <td><input type="number"></td>
   `;
-  document.getElementById('devicesTable').appendChild(row);
 }
 
-// إعداد الخريطة
-const map = L.map('map').setView([34.5, 3], 6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: 'OpenStreetMap'
-}).addTo(map);
-
-map.on('click', async function (e) {
-  selectedLat = e.latlng.lat;
-  selectedLng = e.latlng.lng;
-  document.getElementById('selectedLocation').textContent = '📍 الإحداثيات: ' + selectedLat.toFixed(4) + ', ' + selectedLng.toFixed(4);
-
-  try {
-    const response = await fetch(`https://re.jrc.ec.europa.eu/api/v5_2/seriescalc?lat=${selectedLat}&lon=${selectedLng}&outputformat=json&startyear=2020&endyear=2020&month=1&peakpower=1&loss=0`);
-    const data = await response.json();
-    if (data.outputs && data.outputs.monthly) {
-      const monthlyData = data.outputs.monthly;
-      const avg = monthlyData.reduce((sum, month) => sum + month.Gm, 0) / monthlyData.length;
-      irradiation = avg / 30 / 1000;
-      document.getElementById('irradiationValue').textContent = '☀️ الإشعاع الشمسي: ' + irradiation.toFixed(2) + ' kWh/m²';
-    } else {
-      irradiation = 5;
-      document.getElementById('irradiationValue').textContent = '☀️ إشعاع تقديري: 5 kWh/m²';
-    }
-  } catch (error) {
-    irradiation = 5;
-    document.getElementById('irradiationValue').textContent = '☀️ إشعاع تقديري: 5 kWh/m²';
-  }
+document.querySelectorAll("input[name='inputMode']").forEach(el => {
+  el.addEventListener("change", () => {
+    const mode = document.querySelector("input[name='inputMode']:checked").value;
+    document.getElementById("directInputs").style.display = mode === "direct" ? "block" : "none";
+    document.getElementById("deviceInputs").style.display = mode === "devices" ? "block" : "none";
+  });
 });
 
 function calculate() {
-  let dailyKWh = 0;
-  const mode = document.querySelector('input[name="inputMode"]:checked').value;
+  let energy = 0;
+  const mode = document.querySelector("input[name='inputMode']:checked").value;
 
-  if (mode === 'direct') {
-    const daily = parseFloat(document.getElementById('dailyUsage').value) || 0;
-    const monthly = parseFloat(document.getElementById('monthlyUsage').value) || 0;
-    dailyKWh = daily || (monthly / 30);
+  if (mode === "direct") {
+    energy = parseFloat(document.getElementById("dailyUsage").value) || (parseFloat(document.getElementById("monthlyUsage").value) / 30) || 0;
   } else {
-    const rows = document.querySelectorAll('#devicesTable tr:not(:first-child)');
+    const rows = document.querySelectorAll("#devicesTable tr:not(:first-child)");
     rows.forEach(row => {
-      const power = parseFloat(row.children[1].querySelector('input').value) || 0;
-      const hours = parseFloat(row.children[2].querySelector('input').value) || 0;
-      const count = parseFloat(row.children[3].querySelector('input').value) || 0;
-      dailyKWh += (power * hours * count) / 1000;
+      const watt = parseFloat(row.cells[1].children[0].value);
+      const hours = parseFloat(row.cells[2].children[0].value);
+      const count = parseFloat(row.cells[3].children[0].value);
+      if (watt && hours && count) {
+        energy += (watt * hours * count) / 1000;
+      }
     });
   }
 
-  const systemVoltage = parseFloat(document.getElementById('systemVoltage').value);
-  const panelWatt = parseFloat(document.getElementById('panelWatt').value);
-  const panelVoltage = parseFloat(document.getElementById('panelVoltage').value);
-  const batteryCapacity = parseFloat(document.getElementById('batteryCapacity').value);
-  const batteryVoltage = parseFloat(document.getElementById('batteryVoltage').value);
+  const irradiation = parseFloat(document.getElementById("irradiationValue").dataset.value) || 5;
+  const systemVoltage = parseFloat(document.getElementById("systemVoltage").value);
 
-  if (!irradiation) irradiation = 5;
+  const panelWatt = parseFloat(document.getElementById("panelWatt").value);
+  const panelVoltage = parseFloat(document.getElementById("panelVoltage").value);
 
-  const neededWhPerDay = dailyKWh * 1000;
-  const panelOutputPerDay = panelWatt * irradiation;
-  const numPanels = Math.ceil(neededWhPerDay / panelOutputPerDay);
+  const batteryCapacity = parseFloat(document.getElementById("batteryCapacity").value);
+  const batteryVoltage = parseFloat(document.getElementById("batteryVoltage").value);
 
-  const panelsInSeries = Math.ceil(systemVoltage / panelVoltage);
-  const panelsInParallel = Math.ceil(numPanels / panelsInSeries);
+  const requiredPanels = Math.ceil((energy * 1000) / (irradiation * panelWatt));
+  const panelsSeries = Math.ceil(systemVoltage / panelVoltage);
+  const panelsParallel = Math.ceil(requiredPanels / panelsSeries);
 
-  const requiredAh = neededWhPerDay / systemVoltage;
-  const batteriesInSeries = Math.ceil(systemVoltage / batteryVoltage);
-  const batteriesInParallel = Math.ceil(requiredAh / batteryCapacity);
-  const totalBatteries = batteriesInSeries * batteriesInParallel;
+  const batteryEnergyWh = energy * 1000;
+  const batteryWh = batteryCapacity * batteryVoltage;
+  const requiredBatteries = Math.ceil(batteryEnergyWh / batteryWh);
+  const batteriesSeries = Math.ceil(systemVoltage / batteryVoltage);
+  const batteriesParallel = Math.ceil(requiredBatteries / batteriesSeries);
 
-  document.getElementById('results').innerHTML = `
-    ✅ الاستهلاك اليومي: ${dailyKWh.toFixed(2)} kWh<br>
-    ✅ الإشعاع الشمسي: ${irradiation.toFixed(2)} kWh/m²<br>
-    🔆 عدد الألواح المطلوبة: ${numPanels}<br>
-    🔌 توزيع الألواح: ${panelsInSeries} على التسلسل × ${panelsInParallel} على التفرع<br>
-    🔋 عدد البطاريات المطلوبة: ${totalBatteries}<br>
-    🔌 توزيع البطاريات: ${batteriesInSeries} على التسلسل × ${batteriesInParallel} على التفرع
+  document.getElementById("results").innerHTML = `
+    🔋 الاستهلاك اليومي: ${energy.toFixed(2)} kWh<br>
+    ☀️ الإشعاع الشمسي: ${irradiation} kWh/m²<br>
+    🔆 عدد الألواح المطلوبة: ${requiredPanels}<br>
+    🔌 توزيع الألواح: ${panelsSeries} على التسلسل × ${panelsParallel} على التفرع<br>
+    🔋 عدد البطاريات المطلوبة: ${requiredBatteries}<br>
+    🔌 توزيع البطاريات: ${batteriesSeries} على التسلسل × ${batteriesParallel} على التفرع
   `;
 }
